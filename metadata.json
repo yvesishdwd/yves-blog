@@ -1,0 +1,6 @@
+{
+  "name": "Yves' Blog",
+  "description": "A very minimal publication and personal journal by Yves, typeset in Helvetica with pure black and white Swiss aesthetics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

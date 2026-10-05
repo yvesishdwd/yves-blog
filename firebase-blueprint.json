@@ -1,0 +1,45 @@
+{
+  "entities": {
+    "DiaryEntry": {
+      "title": "DiaryEntry",
+      "description": "A short contemplative diary entry or note by Yves",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "text": { "type": "string", "maxLength": 5000 },
+        "location": { "type": "string", "maxLength": 100 },
+        "authorEmail": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["date", "text", "authorEmail"]
+    },
+    "WritingArticle": {
+      "title": "WritingArticle",
+      "description": "An essay or article published by Yves",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 300 },
+        "date": { "type": "string" },
+        "category": { "type": "string", "maxLength": 50 },
+        "readTime": { "type": "string", "maxLength": 50 },
+        "summary": { "type": "string", "maxLength": 1000 },
+        "content": { "type": "string", "maxLength": 50000 },
+        "authorEmail": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "date", "content", "authorEmail"]
+    }
+  },
+  "firestore": {
+    "/diary_entries/{entryId}": {
+      "schema": "DiaryEntry",
+      "description": "Publicly readable diary notes; writes restricted to authorized author"
+    },
+    "/writing_articles/{articleId}": {
+      "schema": "WritingArticle",
+      "description": "Publicly readable essays; writes restricted to authorized author"
+    }
+  }
+}
