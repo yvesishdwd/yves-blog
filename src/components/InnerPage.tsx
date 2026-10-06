@@ -758,11 +758,11 @@ export const InnerPage: React.FC<InnerPageProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-xl flex flex-col items-start pt-6"
+              className={`w-full ${!selectedDiaryMonth ? 'max-w-md items-center' : 'max-w-2xl sm:max-w-3xl items-start'} flex flex-col pt-6 mx-auto`}
             >
-              {/* Level 1: If no year is selected yet: show column of years: 2026 (x), 2025 (y) */}
+              {/* Level 1: If no year is selected yet: show column of years centered */}
               {!selectedDiaryYear ? (
-                <div className="w-full max-w-md flex flex-col items-start">
+                <div className="w-full flex flex-col items-center justify-center text-center">
                   {/* Top author button */}
                   {isAuthor && (
                     <div className="w-full flex justify-end mb-6">
@@ -778,11 +778,11 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                     </div>
                   )}
 
-                  {/* Column of years with note counts */}
+                  {/* Column of years without note counts */}
                   {diaryYearGroups.length === 0 ? (
                     <p className="text-[13px] text-black/40 py-2">no notes yet.</p>
                   ) : (
-                    <div className="flex flex-col space-y-2 text-[15px] sm:text-base font-normal text-left">
+                    <div className="flex flex-col space-y-2.5 text-[15px] sm:text-base font-normal text-center items-center">
                       {diaryYearGroups.map((group) => (
                         <button
                           key={group.year}
@@ -790,17 +790,17 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                             setSelectedDiaryYear(group.year);
                             setSelectedDiaryMonth(null);
                           }}
-                          className="text-black hover:opacity-40 transition-opacity text-left cursor-pointer"
+                          className="text-black hover:opacity-40 transition-opacity text-center cursor-pointer"
                         >
-                          {group.year} ({group.count})
+                          {group.year}
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
               ) : !selectedDiaryMonth ? (
-                /* Level 2: When a specific year is clicked: show months list for that year: e.g. "10 2026" (x) */
-                <div className="w-full max-w-md">
+                /* Level 2: When a specific year is clicked: show months list centered without count: e.g. "10 2026" */
+                <div className="w-full max-w-md mx-auto flex flex-col items-center">
                   {/* Header showing back to years and new note */}
                   <div className="w-full flex justify-between items-center mb-8 text-[12px]">
                     <button
@@ -828,17 +828,14 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                   {diaryMonthGroups.length === 0 ? (
                     <p className="text-[13px] text-black/40 py-2">no notes yet.</p>
                   ) : (
-                    <div className="flex flex-col space-y-3.5 text-[15px] sm:text-base font-normal text-left w-full">
+                    <div className="flex flex-col space-y-3.5 text-[15px] sm:text-base font-normal text-center w-full items-center">
                       {diaryMonthGroups.map((group) => (
                         <button
                           key={group.monthYear}
                           onClick={() => setSelectedDiaryMonth(group.monthYear)}
-                          className="text-black hover:opacity-40 transition-opacity text-left cursor-pointer flex items-baseline justify-between w-full"
+                          className="text-black hover:opacity-40 transition-opacity text-center cursor-pointer"
                         >
-                          <span>{group.monthYear}</span>
-                          <span className="text-[12px] text-black/40 font-normal">
-                            ({group.totalCount})
-                          </span>
+                          {group.monthYear}
                         </button>
                       ))}
                     </div>
@@ -846,7 +843,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                 </div>
               ) : (
                 /* Level 3: Merged monthly diary: "1 bài cuộn dài ơi là dài" labeled e.g. "10 2026" */
-                <div className="w-full max-w-xl">
+                <div className="w-full max-w-2xl sm:max-w-3xl">
                   {/* Header showing back to months list and new note */}
                   <div className="w-full flex justify-between items-center mb-8 text-[12px]">
                     <button
@@ -908,15 +905,26 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                                   {renderFormattedText(note.text)}
                                 </p>
                                 {note.images && note.images.length > 0 && (
-                                  <div className="flex flex-wrap gap-4 pt-2">
-                                    {note.images.map((img) => (
-                                      <img
-                                        key={img.id}
-                                        src={img.src}
-                                        alt="note visual"
-                                        className="max-w-[280px] h-auto block select-none"
-                                      />
-                                    ))}
+                                  <div className="space-y-4 pt-3 w-full">
+                                    {note.images
+                                      .slice()
+                                      .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10))
+                                      .map((img) => (
+                                        <div
+                                          key={img.id}
+                                          className="w-full flex justify-center"
+                                        >
+                                          <img
+                                            src={img.src}
+                                            alt="note visual"
+                                            className="h-auto block select-none mx-auto"
+                                            style={{
+                                              width: img.width ? `${img.width}px` : 'auto',
+                                              maxWidth: '100%',
+                                            }}
+                                          />
+                                        </div>
+                                      ))}
                                   </div>
                                 )}
                               </article>
@@ -939,11 +947,11 @@ export const InnerPage: React.FC<InnerPageProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-md flex flex-col items-start pt-6"
+              className={`w-full ${!selectedWritingYear ? 'max-w-md items-center' : 'max-w-md items-start'} flex flex-col pt-6 mx-auto`}
             >
-              {/* If no year is selected yet: show column of years: 2026 (x), 2025 (y) */}
+              {/* If no year is selected yet: show column of years centered */}
               {!selectedWritingYear ? (
-                <div className="w-full flex flex-col items-start">
+                <div className="w-full flex flex-col items-center justify-center text-center">
                   {/* Top author button */}
                   {isAuthor && (
                     <div className="w-full flex justify-end mb-6">
@@ -959,18 +967,18 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                     </div>
                   )}
 
-                  {/* Column of years with essay counts */}
+                  {/* Column of years without count */}
                   {writingYearGroups.length === 0 ? (
                     <p className="text-[13px] text-black/40 py-2">no essays yet.</p>
                   ) : (
-                    <div className="flex flex-col space-y-2 text-[15px] sm:text-base font-normal text-left">
+                    <div className="flex flex-col space-y-2.5 text-[15px] sm:text-base font-normal text-center items-center">
                       {writingYearGroups.map((group) => (
                         <button
                           key={group.year}
                           onClick={() => setSelectedWritingYear(group.year)}
-                          className="text-black hover:opacity-40 transition-opacity text-left cursor-pointer"
+                          className="text-black hover:opacity-40 transition-opacity text-center cursor-pointer"
                         >
-                          {group.year} ({group.count})
+                          {group.year}
                         </button>
                       ))}
                     </div>
@@ -1053,7 +1061,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-xl flex flex-col items-start pt-6 pb-4"
+              className="w-full max-w-2xl sm:max-w-3xl flex flex-col items-start pt-6 pb-4"
             >
               <header className="mb-8 w-full">
                 <div className="flex items-center justify-between text-[12px] text-black/50 font-normal mb-2">
@@ -1087,12 +1095,15 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                   {[...selectedArticle.images]
                     .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10))
                     .map((img) => (
-                      <div key={img.id} className="w-full">
+                      <div key={img.id} className="w-full flex justify-center">
                         <img
                           src={img.src}
                           alt="article photograph"
-                          className="w-full max-w-lg h-auto block select-none"
-                          style={{ width: img.width ? `${img.width}px` : undefined }}
+                          className="h-auto block select-none mx-auto"
+                          style={{
+                            width: img.width ? `${img.width}px` : 'auto',
+                            maxWidth: '100%',
+                          }}
                         />
                       </div>
                     ))}

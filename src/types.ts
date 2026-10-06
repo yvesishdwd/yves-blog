@@ -6,6 +6,7 @@ export interface CanvasImage {
   width?: number;
   caption?: string;
   zIndex?: number;
+  alignment?: 'left' | 'center' | 'right';
 }
 
 export interface Article {

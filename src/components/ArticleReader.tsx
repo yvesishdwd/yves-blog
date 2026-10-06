@@ -191,6 +191,27 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         </h1>
       </header>
 
+      {/* Frameless photographs sorted by layer order */}
+      {article.images && article.images.length > 0 && (
+        <div className="mb-12 w-full space-y-6">
+          {[...article.images]
+            .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10))
+            .map((img) => (
+              <div key={img.id} className="w-full flex justify-center">
+                <img
+                  src={img.src}
+                  alt="essay photograph"
+                  className="h-auto block select-none mx-auto"
+                  style={{
+                    width: img.width ? `${img.width}px` : 'auto',
+                    maxWidth: '100%',
+                  }}
+                />
+              </div>
+            ))}
+        </div>
+      )}
+
       {/* Article Body */}
       <div className={`space-y-6 text-black ${fontClasses[fontSize]}`}>
         {typeof article.content === 'string' ? (

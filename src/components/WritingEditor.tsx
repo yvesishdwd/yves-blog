@@ -57,6 +57,10 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const textContainerRef = useRef<HTMLDivElement>(null);
+  const [resizingId, setResizingId] = useState<string | null>(null);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
 
   // Sync state if editData changes
   useEffect(() => {
@@ -169,6 +173,7 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
             y: Math.min(160 + images.length * 35, 450),
             width: 280,
             zIndex: maxLayer + 1,
+            alignment: 'left',
           };
           setImages((prev) => [...prev, newImg]);
         }
@@ -186,16 +191,6 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
     setImages((prev) => prev.filter((img) => img.id !== id));
   };
 
-  const resizeImage = (id: string, delta: number) => {
-    setImages((prev) =>
-      prev.map((img) => {
-        if (img.id !== id) return img;
-        const newW = Math.max(120, Math.min(650, (img.width || 280) + delta));
-        return { ...img, width: newW };
-      })
-    );
-  };
-
   const adjustLayer = (id: string, direction: 'up' | 'down') => {
     setImages((prev) =>
       prev.map((img) => {
@@ -205,6 +200,72 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
         return { ...img, zIndex: newZ };
       })
     );
+  };
+
+  // Free dragging without snapping
+  const handleDragEnd = (img: CanvasImage, info: { offset: { x: number; y: number } }) => {
+    setImages((prev) =>
+      prev.map((item) =>
+        item.id === img.id
+          ? {
+              ...item,
+              x: Math.round(item.x + info.offset.x),
+              y: Math.max(0, Math.round(item.y + info.offset.y)),
+            }
+          : item
+      )
+    );
+  };
+
+  // Corner resize handling - completely free, simple and minimal
+  const handleCornerResizeStart = (
+    e: React.PointerEvent,
+    img: CanvasImage,
+    corner: 'se' | 'sw' | 'ne' | 'nw'
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    setResizingId(img.id);
+    setSelectedImageId(img.id);
+
+    const startX = e.clientX;
+    const startWidth = img.width || 280;
+    const startXPos = img.x;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      let newWidth = startWidth;
+      let newXPos = startXPos;
+
+      if (corner === 'se' || corner === 'ne') {
+        newWidth = Math.max(100, Math.min(1000, startWidth + deltaX));
+      } else {
+        newWidth = Math.max(100, Math.min(1000, startWidth - deltaX));
+        newXPos = startXPos + (startWidth - newWidth);
+      }
+
+      setImages((prev) =>
+        prev.map((item) =>
+          item.id === img.id
+            ? {
+                ...item,
+                width: Math.round(newWidth),
+                x: Math.round(newXPos),
+              }
+            : item
+        )
+      );
+    };
+
+    const onPointerUp = () => {
+      setResizingId(null);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
   };
 
   // Discard draft or delete published item
@@ -258,6 +319,7 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
             y: Math.round(img.y),
             width: img.width || 280,
             zIndex: img.zIndex || 10,
+            alignment: img.alignment || 'left',
           })),
           authorEmail,
           authorSecret: 'ieatandlovetomato444',
@@ -289,6 +351,7 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
             y: Math.round(img.y),
             width: img.width || 280,
             zIndex: img.zIndex || 10,
+            alignment: img.alignment || 'left',
           })),
           authorEmail,
           authorSecret: 'ieatandlovetomato444',
@@ -404,8 +467,14 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
       </header>
 
       {/* Main Expansive Canvas Workspace */}
-      <div className="flex-1 overflow-y-auto px-6 sm:px-12 py-10 relative">
-        <div className="max-w-2xl mx-auto w-full min-h-[80vh] flex flex-col relative z-0">
+      <div
+        ref={workspaceRef}
+        className="flex-1 overflow-y-auto px-6 sm:px-12 py-10 relative"
+      >
+        <div
+          ref={textContainerRef}
+          className="max-w-2xl mx-auto w-full min-h-[80vh] flex flex-col relative z-0"
+        >
           {statusMessage && (
             <div className="mb-6 p-3 bg-neutral-100 text-[12px] text-black">
               {statusMessage}
@@ -449,36 +518,24 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
           />
         </div>
 
-        {/* Freely Draggable Frameless Images with Layer Control */}
+        {/* Freely Draggable Frameless Images with Corner Resize and Layer Control */}
         <AnimatePresence>
           {images.map((img) => (
             <motion.div
               key={img.id}
-              drag
+              drag={!resizingId}
               dragMomentum={false}
-              dragElastic={0.08}
-              initial={{ x: img.x, y: img.y, opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onDragEnd={(_, info) => {
-                setImages((prev) =>
-                  prev.map((item) =>
-                    item.id === img.id
-                      ? {
-                          ...item,
-                          x: item.x + info.offset.x,
-                          y: item.y + info.offset.y,
-                        }
-                      : item
-                  )
-                );
-              }}
+              dragElastic={0}
+              animate={{ x: img.x, y: img.y, opacity: 1 }}
+              transition={{ duration: 0 }}
+              onDragEnd={(_, info) => handleDragEnd(img, info)}
+              onClick={() => setSelectedImageId(img.id)}
               style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 zIndex: img.zIndex || 10,
-                cursor: 'grab',
+                cursor: resizingId === img.id ? 'default' : 'grab',
                 width: img.width || 280,
               }}
               whileDrag={{
@@ -487,47 +544,73 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
               }}
               className="group select-none"
             >
-              <div className="relative">
-                {/* Floating Image controls on hover */}
-                <div className="absolute -top-6 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-black text-white text-[10px] px-1.5 py-0.5 z-30">
+              <div
+                className={`relative transition-all ${
+                  selectedImageId === img.id || resizingId === img.id
+                    ? 'ring-1 ring-sky-500 ring-offset-1'
+                    : 'group-hover:ring-1 group-hover:ring-black/20'
+                }`}
+              >
+                {/* Floating Image controls on hover / select */}
+                <div className="absolute -top-7 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 bg-black text-white text-[10px] px-2 py-0.5 z-40 select-none">
                   <button
-                    onClick={() => adjustLayer(img.id, 'down')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      adjustLayer(img.id, 'down');
+                    }}
                     className="hover:opacity-70 px-1 cursor-pointer"
                     title="send layer backward"
                   >
                     ↓
                   </button>
                   <button
-                    onClick={() => adjustLayer(img.id, 'up')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      adjustLayer(img.id, 'up');
+                    }}
                     className="hover:opacity-70 px-1 cursor-pointer"
                     title="bring layer forward"
                   >
                     ↑
                   </button>
                   <span className="text-white/30">|</span>
-                  <button
-                    onClick={() => resizeImage(img.id, -40)}
-                    className="hover:opacity-70 px-1 cursor-pointer"
-                    title="smaller"
-                  >
-                    -
-                  </button>
-                  <button
-                    onClick={() => resizeImage(img.id, 40)}
-                    className="hover:opacity-70 px-1 cursor-pointer"
-                    title="larger"
-                  >
-                    +
-                  </button>
+                  <span className="text-white/70 font-mono text-[9px]">
+                    {Math.round(img.width || 280)}px
+                  </span>
                   <span className="text-white/30">|</span>
                   <button
-                    onClick={() => removeImage(img.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeImage(img.id);
+                    }}
                     className="hover:text-red-400 px-1 cursor-pointer font-bold"
-                    title="remove"
+                    title="remove image"
                   >
                     ✕
                   </button>
                 </div>
+
+                {/* 4 Corner Resize Handles */}
+                <div
+                  onPointerDown={(e) => handleCornerResizeStart(e, img, 'nw')}
+                  className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border border-black cursor-nwse-resize z-40 hover:scale-125 transition-transform opacity-0 group-hover:opacity-100"
+                  title="drag corner to resize"
+                />
+                <div
+                  onPointerDown={(e) => handleCornerResizeStart(e, img, 'ne')}
+                  className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border border-black cursor-nesw-resize z-40 hover:scale-125 transition-transform opacity-0 group-hover:opacity-100"
+                  title="drag corner to resize"
+                />
+                <div
+                  onPointerDown={(e) => handleCornerResizeStart(e, img, 'sw')}
+                  className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border border-black cursor-nesw-resize z-40 hover:scale-125 transition-transform opacity-0 group-hover:opacity-100"
+                  title="drag corner to resize"
+                />
+                <div
+                  onPointerDown={(e) => handleCornerResizeStart(e, img, 'se')}
+                  className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border border-black cursor-nwse-resize z-40 hover:scale-125 transition-transform opacity-0 group-hover:opacity-100"
+                  title="drag corner to resize"
+                />
 
                 {/* Pure frameless photo */}
                 <img
