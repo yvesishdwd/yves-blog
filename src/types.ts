@@ -9,6 +9,19 @@ export interface CanvasImage {
   alignment?: 'left' | 'center' | 'right';
 }
 
+export type ContentBlock =
+  | {
+      id: string;
+      type: 'text';
+      text: string;
+      align?: 'left' | 'center' | 'right';
+    }
+  | {
+      id: string;
+      type: 'image';
+      image: CanvasImage;
+    };
+
 export interface Article {
   id: string;
   slug?: string;
@@ -26,6 +39,7 @@ export interface Article {
       }[]
     | string;
   images?: CanvasImage[];
+  blocks?: ContentBlock[];
   tags?: string[];
   authorEmail?: string;
 }
@@ -37,6 +51,7 @@ export interface NoteItem {
   location?: string;
   authorEmail?: string;
   images?: CanvasImage[];
+  blocks?: ContentBlock[];
 }
 
 export interface DeletedItem {
@@ -48,6 +63,7 @@ export interface DeletedItem {
   summary?: string;
   content?: any;
   images?: CanvasImage[];
+  blocks?: ContentBlock[];
   deletedAt: string;
 }
 

@@ -59,7 +59,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-white/95 backdrop-blur-xs select-none lowercase"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-white/95 backdrop-blur-xs select-none"
       style={{ fontFamily: 'Arial, sans-serif' }}
       onClick={onClose}
     >

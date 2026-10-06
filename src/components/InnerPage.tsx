@@ -207,6 +207,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
             text: data.text || '',
             authorEmail: data.authorEmail,
             images: data.images || [],
+            blocks: data.blocks || [],
           });
         });
         items.sort((a, b) => b.date.localeCompare(a.date));
@@ -235,6 +236,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
             content: data.content || '',
             authorEmail: data.authorEmail,
             images: data.images || [],
+            blocks: data.blocks || [],
           });
         });
         items.sort((a, b) => b.date.localeCompare(a.date));
@@ -262,6 +264,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
             summary: data.summary,
             content: data.content,
             images: data.images || [],
+            blocks: data.blocks || [],
             deletedAt: data.deletedAt || '',
           });
         });
@@ -672,6 +675,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
       date: note.date,
       content: note.text,
       images: note.images || [],
+      blocks: note.blocks,
     });
     setEditorType('diary');
   };
@@ -691,13 +695,14 @@ export const InnerPage: React.FC<InnerPageProps> = ({
       category: art.category,
       content: rawContent,
       images: art.images || [],
+      blocks: art.blocks,
     });
     setEditorType('writing');
   };
 
   return (
     <div
-      className="min-h-screen bg-white text-black flex flex-col justify-between items-center px-6 py-12 selection:bg-black selection:text-white relative lowercase"
+      className="min-h-screen bg-white text-black flex flex-col justify-between items-center px-6 py-12 selection:bg-black selection:text-white relative"
       style={{
         fontFamily: 'Arial, sans-serif',
         letterSpacing: 'normal',
@@ -843,7 +848,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                 </div>
               ) : (
                 /* Level 3: Merged monthly diary: "1 bài cuộn dài ơi là dài" labeled e.g. "10 2026" */
-                <div className="w-full max-w-2xl sm:max-w-3xl">
+                <div className="w-full max-w-[640px] mx-auto">
                   {/* Header showing back to months list and new note */}
                   <div className="w-full flex justify-between items-center mb-8 text-[12px]">
                     <button
@@ -901,31 +906,109 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                                     </div>
                                   )}
                                 </div>
-                                <p className="text-black font-normal whitespace-pre-wrap leading-relaxed text-[13px]">
-                                  {renderFormattedText(note.text)}
-                                </p>
-                                {note.images && note.images.length > 0 && (
-                                  <div className="space-y-4 pt-3 w-full">
-                                    {note.images
-                                      .slice()
-                                      .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10))
-                                      .map((img) => (
-                                        <div
-                                          key={img.id}
-                                          className="w-full flex justify-center"
-                                        >
-                                          <img
-                                            src={img.src}
-                                            alt="note visual"
-                                            className="h-auto block select-none mx-auto"
-                                            style={{
-                                              width: img.width ? `${img.width}px` : 'auto',
-                                              maxWidth: '100%',
-                                            }}
-                                          />
-                                        </div>
-                                      ))}
+
+                                {/* Render interleaved blocks or legacy content */}
+                                {note.blocks && note.blocks.length > 0 ? (
+                                  <div className="flex flex-col gap-[1.6em] w-full">
+                                    {note.blocks.map((block) => {
+                                      if (block.type === 'text') {
+                                        if (!block.text.trim()) return null;
+                                        return (
+                                          <p
+                                            key={block.id}
+                                            className="text-black font-normal whitespace-pre-wrap leading-[1.6] text-[13px] sm:text-[14px]"
+                                          >
+                                            {renderFormattedText(block.text)}
+                                          </p>
+                                        );
+                                      }
+
+                                      if (block.type === 'image' && block.image) {
+                                        const img = block.image;
+                                        const alignClass =
+                                          img.alignment === 'center'
+                                            ? 'mx-auto'
+                                            : img.alignment === 'right'
+                                            ? 'ml-auto mr-0'
+                                            : 'mr-auto ml-0';
+
+                                        const widthStyle =
+                                          img.width === 50
+                                            ? '50%'
+                                            : img.width === 75
+                                            ? '75%'
+                                            : typeof img.width === 'number' && img.width > 0 && img.width <= 100
+                                            ? `${img.width}%`
+                                            : '100%';
+
+                                        return (
+                                          <div
+                                            key={block.id}
+                                            className="w-full flex overflow-hidden"
+                                          >
+                                            <img
+                                              src={img.src}
+                                              alt="note visual"
+                                              className={`h-auto block select-none max-w-full ${alignClass}`}
+                                              style={{
+                                                width: widthStyle,
+                                                maxWidth: '100%',
+                                              }}
+                                            />
+                                          </div>
+                                        );
+                                      }
+
+                                      return null;
+                                    })}
                                   </div>
+                                ) : (
+                                  <>
+                                    <p className="text-black font-normal whitespace-pre-wrap leading-[1.6] text-[13px] sm:text-[14px]">
+                                      {renderFormattedText(note.text)}
+                                    </p>
+                                    {note.images && note.images.length > 0 && (
+                                      <div className="mt-[1.6em] space-y-[1.6em] w-full">
+                                        {note.images
+                                          .slice()
+                                          .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10))
+                                          .map((img) => {
+                                            const alignClass =
+                                              img.alignment === 'center'
+                                                ? 'mx-auto'
+                                                : img.alignment === 'right'
+                                                ? 'ml-auto mr-0'
+                                                : 'mr-auto ml-0';
+
+                                            const widthStyle =
+                                              img.width === 50
+                                                ? '50%'
+                                                : img.width === 75
+                                                ? '75%'
+                                                : typeof img.width === 'number' && img.width > 0 && img.width <= 100
+                                                ? `${img.width}%`
+                                                : '100%';
+
+                                            return (
+                                              <div
+                                                key={img.id}
+                                                className="w-full flex overflow-hidden"
+                                              >
+                                                <img
+                                                  src={img.src}
+                                                  alt="note visual"
+                                                  className={`h-auto block select-none max-w-full ${alignClass}`}
+                                                  style={{
+                                                    width: widthStyle,
+                                                    maxWidth: '100%',
+                                                  }}
+                                                />
+                                              </div>
+                                            );
+                                          })}
+                                      </div>
+                                    )}
+                                  </>
                                 )}
                               </article>
                             ))}
@@ -1061,7 +1144,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-2xl sm:max-w-3xl flex flex-col items-start pt-6 pb-4"
+              className="w-full max-w-[640px] flex flex-col items-start pt-6 pb-4 mx-auto"
             >
               <header className="mb-8 w-full">
                 <div className="flex items-center justify-between text-[12px] text-black/50 font-normal mb-2">
@@ -1089,75 +1172,149 @@ export const InnerPage: React.FC<InnerPageProps> = ({
                 </h1>
               </header>
 
-              {/* Frameless photographs sorted by layer order */}
-              {selectedArticle.images && selectedArticle.images.length > 0 && (
-                <div className="my-8 w-full space-y-6">
-                  {[...selectedArticle.images]
-                    .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10))
-                    .map((img) => (
-                      <div key={img.id} className="w-full flex justify-center">
-                        <img
-                          src={img.src}
-                          alt="article photograph"
-                          className="h-auto block select-none mx-auto"
-                          style={{
-                            width: img.width ? `${img.width}px` : 'auto',
-                            maxWidth: '100%',
-                          }}
-                        />
-                      </div>
-                    ))}
-                </div>
-              )}
+              {/* Render interleaved blocks or legacy content */}
+              {selectedArticle.blocks && selectedArticle.blocks.length > 0 ? (
+                <div className="flex flex-col gap-[1.6em] w-full">
+                  {selectedArticle.blocks.map((block) => {
+                    if (block.type === 'text') {
+                      if (!block.text.trim()) return null;
+                      return (
+                        <p
+                          key={block.id}
+                          className="text-black font-normal whitespace-pre-wrap leading-[1.6] text-[13px] sm:text-[14px]"
+                        >
+                          {renderFormattedText(block.text)}
+                        </p>
+                      );
+                    }
 
-              <div className="w-full space-y-5 text-[13px] sm:text-sm leading-relaxed text-black/90 font-normal">
-                {typeof selectedArticle.content === 'string' ? (
-                  selectedArticle.content.split('\n\n').map((para, i) => (
-                    <p key={i} className="whitespace-pre-line">
-                      {renderFormattedText(para)}
-                    </p>
-                  ))
-                ) : Array.isArray(selectedArticle.content) ? (
-                  selectedArticle.content.map((block, idx) => {
-                    if (block.type === 'heading') {
+                    if (block.type === 'image' && block.image) {
+                      const img = block.image;
+                      const alignClass =
+                        img.alignment === 'center'
+                          ? 'mx-auto'
+                          : img.alignment === 'right'
+                          ? 'ml-auto mr-0'
+                          : 'mr-auto ml-0';
+
+                      const widthStyle =
+                        img.width === 50
+                          ? '50%'
+                          : img.width === 75
+                          ? '75%'
+                          : typeof img.width === 'number' && img.width > 0 && img.width <= 100
+                          ? `${img.width}%`
+                          : '100%';
+
                       return (
-                        <h3
-                          key={idx}
-                          className="text-sm sm:text-base font-normal text-black pt-4 pb-1"
-                        >
-                          {block.text}
-                        </h3>
+                        <div key={block.id} className="w-full flex overflow-hidden">
+                          <img
+                            src={img.src}
+                            alt="article photograph"
+                            className={`h-auto block select-none max-w-full ${alignClass}`}
+                            style={{
+                              width: widthStyle,
+                              maxWidth: '100%',
+                            }}
+                          />
+                        </div>
                       );
                     }
-                    if (block.type === 'paragraph') {
-                      return <p key={idx}>{block.text ? renderFormattedText(block.text) : ''}</p>;
-                    }
-                    if (block.type === 'quote') {
-                      return (
-                        <blockquote
-                          key={idx}
-                          className="my-6 pl-4 border-l border-black text-black/80 font-normal not-italic"
-                        >
-                          "{block.text ? renderFormattedText(block.text) : ''}"
-                        </blockquote>
-                      );
-                    }
-                    if (block.type === 'list' && block.items) {
-                      return (
-                        <ul key={idx} className="my-4 space-y-1.5 pl-0">
-                          {block.items.map((it, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <span className="text-black/40">—</span>
-                              <span>{renderFormattedText(it)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      );
-                    }
+
                     return null;
-                  })
-                ) : null}
-              </div>
+                  })}
+                </div>
+              ) : (
+                <>
+                  {/* Frameless photographs strictly bounded within left and right margins */}
+                  {selectedArticle.images && selectedArticle.images.length > 0 && (
+                    <div className="my-[1.6em] flex flex-col gap-[1.6em] w-full">
+                      {[...selectedArticle.images]
+                        .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10))
+                        .map((img) => {
+                          const alignClass =
+                            img.alignment === 'center'
+                              ? 'mx-auto'
+                              : img.alignment === 'right'
+                              ? 'ml-auto mr-0'
+                              : 'mr-auto ml-0';
+
+                          const widthStyle =
+                            img.width === 50
+                              ? '50%'
+                              : img.width === 75
+                              ? '75%'
+                              : typeof img.width === 'number' && img.width > 0 && img.width <= 100
+                              ? `${img.width}%`
+                              : '100%';
+
+                          return (
+                            <div key={img.id} className="w-full flex overflow-hidden">
+                              <img
+                                src={img.src}
+                                alt="article photograph"
+                                className={`h-auto block select-none max-w-full ${alignClass}`}
+                                style={{
+                                  width: widthStyle,
+                                  maxWidth: '100%',
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  <div className="w-full flex flex-col gap-[1.6em] text-[13px] sm:text-sm leading-[1.6] text-black/90 font-normal">
+                    {typeof selectedArticle.content === 'string' ? (
+                      selectedArticle.content.split('\n\n').map((para, i) => (
+                        <p key={i} className="whitespace-pre-line">
+                          {renderFormattedText(para)}
+                        </p>
+                      ))
+                    ) : Array.isArray(selectedArticle.content) ? (
+                      selectedArticle.content.map((block, idx) => {
+                        if (block.type === 'heading') {
+                          return (
+                            <h3
+                              key={idx}
+                              className="text-sm sm:text-base font-normal text-black pt-4 pb-1"
+                            >
+                              {block.text}
+                            </h3>
+                          );
+                        }
+                        if (block.type === 'paragraph') {
+                          return <p key={idx}>{block.text ? renderFormattedText(block.text) : ''}</p>;
+                        }
+                        if (block.type === 'quote') {
+                          return (
+                            <blockquote
+                              key={idx}
+                              className="my-6 pl-4 border-l border-black text-black/80 font-normal not-italic"
+                            >
+                              "{block.text ? renderFormattedText(block.text) : ''}"
+                            </blockquote>
+                          );
+                        }
+                        if (block.type === 'list' && block.items) {
+                          return (
+                            <ul key={idx} className="my-4 space-y-1.5 pl-0">
+                              {block.items.map((it, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="text-black/40">—</span>
+                                  <span>{renderFormattedText(it)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        }
+                        return null;
+                      })
+                    ) : null}
+                  </div>
+                </>
+              )}
             </motion.div>
           )}
 

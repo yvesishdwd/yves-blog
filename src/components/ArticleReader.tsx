@@ -191,92 +191,163 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         </h1>
       </header>
 
-      {/* Frameless photographs sorted by layer order */}
-      {article.images && article.images.length > 0 && (
-        <div className="mb-12 w-full space-y-6">
-          {[...article.images]
-            .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10))
-            .map((img) => (
-              <div key={img.id} className="w-full flex justify-center">
-                <img
-                  src={img.src}
-                  alt="essay photograph"
-                  className="h-auto block select-none mx-auto"
-                  style={{
-                    width: img.width ? `${img.width}px` : 'auto',
-                    maxWidth: '100%',
-                  }}
-                />
-              </div>
-            ))}
-        </div>
-      )}
-
-      {/* Article Body */}
-      <div className={`space-y-6 text-black ${fontClasses[fontSize]}`}>
-        {typeof article.content === 'string' ? (
-          article.content.split('\n\n').map((para, i) => (
-            <p key={i} className="font-normal text-black/90">
-              {para}
-            </p>
-          ))
-        ) : Array.isArray(article.content) ? (
-          article.content.map((block, idx) => {
-            if (block.type === 'heading') {
+      {/* Render interleaved blocks or legacy content */}
+      {article.blocks && article.blocks.length > 0 ? (
+        <div className={`flex flex-col gap-[1.6em] text-black ${fontClasses[fontSize]}`}>
+          {article.blocks.map((block) => {
+            if (block.type === 'text') {
+              if (!block.text.trim()) return null;
               return (
-                <h2
-                  key={idx}
-                  className="text-xl sm:text-2xl font-medium tracking-tight text-black pt-6 pb-2"
-                  style={{ letterSpacing: '-0.02em' }}
-                >
-                  {block.text}
-                </h2>
-              );
-            }
-
-            if (block.type === 'paragraph') {
-              return (
-                <p key={idx} className="font-normal text-black/90">
+                <p key={block.id} className="font-normal text-black/90 whitespace-pre-wrap leading-[1.6]">
                   {block.text}
                 </p>
               );
             }
 
-            if (block.type === 'quote') {
-              return (
-                <blockquote
-                  key={idx}
-                  className="my-8 py-3 px-6 border-l-2 border-black bg-neutral-50 text-black italic"
-                >
-                  <p className="text-base sm:text-lg leading-relaxed not-italic font-normal">
-                    "{block.text}"
-                  </p>
-                  {block.author && (
-                    <footer className="mt-2 text-xs not-italic text-black/60">
-                      — {block.author}
-                    </footer>
-                  )}
-                </blockquote>
-              );
-            }
+            if (block.type === 'image' && block.image) {
+              const img = block.image;
+              const alignClass =
+                img.alignment === 'center'
+                  ? 'mx-auto'
+                  : img.alignment === 'right'
+                  ? 'ml-auto mr-0'
+                  : 'mr-auto ml-0';
 
-            if (block.type === 'list' && block.items) {
+              const widthStyle =
+                img.width === 50
+                  ? '50%'
+                  : img.width === 75
+                  ? '75%'
+                  : typeof img.width === 'number' && img.width > 0 && img.width <= 100
+                  ? `${img.width}%`
+                  : '100%';
+
               return (
-                <ul key={idx} className="my-6 space-y-2 list-none pl-0">
-                  {block.items.map((item, itemIdx) => (
-                    <li key={itemIdx} className="flex items-start gap-3">
-                      <span className="text-black font-mono text-sm leading-6">—</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div key={block.id} className="w-full flex overflow-hidden">
+                  <img
+                    src={img.src}
+                    alt="essay photograph"
+                    className={`h-auto block select-none max-w-full ${alignClass}`}
+                    style={{
+                      width: widthStyle,
+                      maxWidth: '100%',
+                    }}
+                  />
+                </div>
               );
             }
 
             return null;
-          })
-        ) : null}
-      </div>
+          })}
+        </div>
+      ) : (
+        <>
+          {/* Frameless photographs strictly bounded within left and right margins */}
+          {article.images && article.images.length > 0 && (
+            <div className="flex flex-col gap-[1.6em] w-full">
+              {[...article.images]
+                .sort((a, b) => (a.zIndex || 10) - (b.zIndex || 10))
+                .map((img) => {
+                  const alignClass =
+                    img.alignment === 'center'
+                      ? 'mx-auto'
+                      : img.alignment === 'right'
+                      ? 'ml-auto mr-0'
+                      : 'mr-auto ml-0';
+
+                  const widthStyle =
+                    img.width === 50
+                      ? '50%'
+                      : img.width === 75
+                      ? '75%'
+                      : typeof img.width === 'number' && img.width > 0 && img.width <= 100
+                      ? `${img.width}%`
+                      : '100%';
+
+                  return (
+                    <div key={img.id} className="w-full flex overflow-hidden">
+                      <img
+                        src={img.src}
+                        alt="essay photograph"
+                        className={`h-auto block select-none max-w-full ${alignClass}`}
+                        style={{
+                          width: widthStyle,
+                          maxWidth: '100%',
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          {/* Article Body */}
+          <div className={`flex flex-col gap-[1.6em] text-black ${fontClasses[fontSize]}`}>
+            {typeof article.content === 'string' ? (
+              article.content.split('\n\n').map((para, i) => (
+                <p key={i} className="font-normal text-black/90">
+                  {para}
+                </p>
+              ))
+            ) : Array.isArray(article.content) ? (
+              article.content.map((block, idx) => {
+                if (block.type === 'heading') {
+                  return (
+                    <h2
+                      key={idx}
+                      className="text-xl sm:text-2xl font-medium tracking-tight text-black pt-6 pb-2"
+                      style={{ letterSpacing: '-0.02em' }}
+                    >
+                      {block.text}
+                    </h2>
+                  );
+                }
+
+                if (block.type === 'paragraph') {
+                  return (
+                    <p key={idx} className="font-normal text-black/90">
+                      {block.text}
+                    </p>
+                  );
+                }
+
+                if (block.type === 'quote') {
+                  return (
+                    <blockquote
+                      key={idx}
+                      className="my-8 py-3 px-6 border-l-2 border-black bg-neutral-50 text-black italic"
+                    >
+                      <p className="text-base sm:text-lg leading-relaxed not-italic font-normal">
+                        "{block.text}"
+                      </p>
+                      {block.author && (
+                        <footer className="mt-2 text-xs not-italic text-black/60">
+                          — {block.author}
+                        </footer>
+                      )}
+                    </blockquote>
+                  );
+                }
+
+                if (block.type === 'list' && block.items) {
+                  return (
+                    <ul key={idx} className="my-6 space-y-2 list-none pl-0">
+                      {block.items.map((item, itemIdx) => (
+                        <li key={itemIdx} className="flex items-start gap-3">
+                          <span className="text-black font-mono text-sm leading-6">—</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                }
+
+                return null;
+              })
+            ) : null}
+          </div>
+        </>
+      )}
 
       {/* Tags */}
       {article.tags && article.tags.length > 0 && (
