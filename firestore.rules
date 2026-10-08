@@ -19,9 +19,11 @@ service cloud.firestore {
     function isAuthorOnDelete() {
       return (
         (isSignedIn() && request.auth.token.email == 'huyhoang28092007@gmail.com') ||
-        (resource.data.authorSecret == 'ieatandlovetomato444') ||
-        (resource.data.authorSecret == '28092007') ||
-        (resource.data.authorEmail == 'huyhoang28092007@gmail.com')
+        (resource.data != null && 'authorSecret' in resource.data && (
+          resource.data.authorSecret == 'ieatandlovetomato444' ||
+          resource.data.authorSecret == '28092007'
+        )) ||
+        (resource.data != null && 'authorEmail' in resource.data && resource.data.authorEmail == 'huyhoang28092007@gmail.com')
       );
     }
 
@@ -55,11 +57,11 @@ service cloud.firestore {
       allow delete: if isAuthorOnDelete();
     }
 
-    // Recently deleted entries
+    // Recently deleted entries (trash can)
     match /deleted_entries/{entryId} {
       allow read: if true;
       allow create, update: if isAuthorOnWrite();
-      allow delete: if isAuthorOnDelete();
+      allow delete: if true;
     }
   }
 }

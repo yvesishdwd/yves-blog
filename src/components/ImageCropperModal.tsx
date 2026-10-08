@@ -265,15 +265,28 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
 
     const imageObj = new Image();
     imageObj.onload = () => {
+      let targetW = cropW;
+      let targetH = cropH;
+      const maxDim = 1000;
+      if (targetW > maxDim || targetH > maxDim) {
+        if (targetW > targetH) {
+          targetH = Math.round((targetH * maxDim) / targetW);
+          targetW = maxDim;
+        } else {
+          targetW = Math.round((targetW * maxDim) / targetH);
+          targetH = maxDim;
+        }
+      }
+
       const canvas = document.createElement('canvas');
-      canvas.width = cropW;
-      canvas.height = cropH;
+      canvas.width = targetW;
+      canvas.height = targetH;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      ctx.drawImage(imageObj, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+      ctx.drawImage(imageObj, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
 
-      const croppedUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const croppedUrl = canvas.toDataURL('image/jpeg', 0.78);
       onCrop(croppedUrl);
       onClose();
     };

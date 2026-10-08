@@ -135,20 +135,37 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
     }
   }, [editData, type]);
 
-  // Auto-resize all textareas to fit content naturally
-  useEffect(() => {
-    blocks.forEach((block) => {
-      if (block.type === 'text') {
-        const el = textareaRefs.current[block.id];
-        if (el) {
-          el.style.height = 'auto';
-          el.style.height = `${Math.max(36, el.scrollHeight)}px`;
-        }
-      }
-    });
-  }, [blocks]);
-
   if (!isOpen) return null;
+
+  // Safe helper to cache items locally without throwing QuotaExceededError
+  const safeStoreLocal = (key: string, entry: any) => {
+    try {
+      const local = localStorage.getItem(key);
+      let list = local ? JSON.parse(local) : [];
+      list = list.filter((it: { id: string }) => it.id !== entry.id);
+      list.unshift(entry);
+      if (list.length > 8) list = list.slice(0, 8);
+      localStorage.setItem(key, JSON.stringify(list));
+    } catch (err) {
+      console.warn('LocalStorage quota reached, pruning older items:', err);
+      try {
+        // Strip heavy images from older local entries to free up storage
+        const local = localStorage.getItem(key);
+        let list = local ? JSON.parse(local) : [];
+        list = list.map((item: any, idx: number) => {
+          if (idx > 0 && item.images && item.images.length > 0) {
+            return { ...item, images: [] };
+          }
+          return item;
+        });
+        list = list.filter((it: { id: string }) => it.id !== entry.id);
+        list.unshift(entry);
+        localStorage.setItem(key, JSON.stringify(list.slice(0, 4)));
+      } catch {
+        // Safe fallback - do not crash or show quota error
+      }
+    }
+  };
 
   // Update text of a specific block
   const updateTextBlock = (id: string, text: string) => {
@@ -253,7 +270,7 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
         const offscreen = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        const maxDim = 1200;
+        const maxDim = 1000;
         if (width > maxDim || height > maxDim) {
           if (width > height) {
             height = Math.round((height * maxDim) / width);
@@ -268,7 +285,8 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
         const ctx = offscreen.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = offscreen.toDataURL('image/jpeg', 0.85);
+          // Crisp 0.72 JPEG keeps images between 50KB-90KB without Firestore size overflow
+          const dataUrl = offscreen.toDataURL('image/jpeg', 0.72);
 
           const newImg: CanvasImage = {
             id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -449,11 +467,7 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
           await setDoc(doc(db, 'diary_entries', docId), payload, { merge: true });
         } catch (dbErr) {
           console.warn('Firestore fallback to local:', dbErr);
-          const local = localStorage.getItem('yves_local_diary');
-          let list = local ? JSON.parse(local) : [];
-          list = list.filter((it: { id: string }) => it.id !== docId);
-          list.unshift({ id: docId, ...payload });
-          localStorage.setItem('yves_local_diary', JSON.stringify(list));
+          safeStoreLocal('yves_local_diary', { id: docId, ...payload });
         }
       } else {
         const docId = editData ? editData.id : `article-${Date.now()}`;
@@ -474,11 +488,7 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
           await setDoc(doc(db, 'writing_articles', docId), payload, { merge: true });
         } catch (dbErr) {
           console.warn('Firestore fallback to local:', dbErr);
-          const local = localStorage.getItem('yves_local_writing');
-          let list = local ? JSON.parse(local) : [];
-          list = list.filter((it: { id: string }) => it.id !== docId);
-          list.unshift({ id: docId, ...payload });
-          localStorage.setItem('yves_local_writing', JSON.stringify(list));
+          safeStoreLocal('yves_local_writing', { id: docId, ...payload });
         }
       }
 
@@ -487,7 +497,12 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
     } catch (err: unknown) {
       console.error(err);
       setIsSubmitting(false);
-      setStatusMessage(err instanceof Error ? err.message : 'Error publishing');
+      const rawMsg = err instanceof Error ? err.message : 'Error publishing';
+      if (rawMsg.toLowerCase().includes('quota')) {
+        setStatusMessage('Browser storage cache was temporarily full. Older cache cleared. Please click publish again.');
+      } else {
+        setStatusMessage(rawMsg);
+      }
     }
   };
 
@@ -622,18 +637,32 @@ export const WritingEditor: React.FC<WritingEditorProps> = ({
               if (block.type === 'text') {
                 return (
                   <div key={block.id} className="w-full relative group">
-                    <textarea
-                      ref={(el) => {
-                        textareaRefs.current[block.id] = el;
-                      }}
-                      value={block.text}
-                      onChange={(e) => updateTextBlock(block.id, e.target.value)}
-                      onFocus={() => setActiveTextId(block.id)}
-                      onKeyDown={(e) => handleKeyDown(e, block.id)}
-                      placeholder="Write your text here..."
-                      className="w-full text-[13px] sm:text-[14px] leading-[1.6] text-black placeholder:text-black/30 outline-none border-none bg-transparent resize-none font-normal p-0 overflow-hidden block"
-                      rows={1}
-                    />
+                    {/* CSS Grid Zero-Jitter Mirroring: eliminates Vietnamese typing bounce and caret shaking */}
+                    <div className="grid grid-cols-1 w-full relative">
+                      {/* Invisible mirror div that dictates the grid height smoothly */}
+                      <div
+                        className="invisible whitespace-pre-wrap break-words leading-[1.6] text-[13px] sm:text-[14px] font-normal p-0 col-start-1 row-start-1 select-none pointer-events-none min-h-[1.6em]"
+                        aria-hidden="true"
+                        style={{ fontFamily: 'Arial, sans-serif' }}
+                      >
+                        {(block.text || '') + (block.text?.endsWith('\n') ? '\u200B' : '')}
+                      </div>
+
+                      {/* Real textarea positioned in the EXACT same grid cell */}
+                      <textarea
+                        ref={(el) => {
+                          textareaRefs.current[block.id] = el;
+                        }}
+                        value={block.text}
+                        onChange={(e) => updateTextBlock(block.id, e.target.value)}
+                        onFocus={() => setActiveTextId(block.id)}
+                        onKeyDown={(e) => handleKeyDown(e, block.id)}
+                        placeholder="Write your text here..."
+                        className="col-start-1 row-start-1 w-full text-[13px] sm:text-[14px] leading-[1.6] text-black placeholder:text-black/30 outline-none border-none bg-transparent resize-none font-normal p-0 overflow-hidden block min-h-[1.6em]"
+                        style={{ fontFamily: 'Arial, sans-serif' }}
+                        rows={1}
+                      />
+                    </div>
 
                     {/* Inline Quick Insert buttons on hover - Absolute positioned so ZERO height is added to layout */}
                     <div className="absolute -bottom-5 left-0 z-20 flex items-center gap-3 text-[11px] text-black/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto bg-white/95 px-1">

@@ -154,6 +154,16 @@ export const InnerPage: React.FC<InnerPageProps> = ({
     }
   });
 
+  // Permanently deleted tracking (never resurrect, never restore to trash or lists)
+  const [permanentlyDeletedIds, setPermanentlyDeletedIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('yves_permanently_deleted');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
   // Local storage entries fallback
   const [localNotes, setLocalNotes] = useState<NoteItem[]>(() => {
     try {
@@ -281,13 +291,16 @@ export const InnerPage: React.FC<InnerPageProps> = ({
   const globalDeletedIds = React.useMemo(() => {
     const ids = new Set<string>(deletedIds);
     firestoreDeleted.forEach((d) => ids.add(d.id));
+    permanentlyDeletedIds.forEach((id) => ids.add(id));
     return ids;
-  }, [deletedIds, firestoreDeleted]);
+  }, [deletedIds, firestoreDeleted, permanentlyDeletedIds]);
 
   // Auto-sync any locally deleted IDs to Firestore so every visitor's device is in sync
   useEffect(() => {
     if (isAuthor && deletedIds.size > 0) {
       deletedIds.forEach(async (id) => {
+        // Do not resurrect if permanently deleted
+        if (permanentlyDeletedIds.has(id)) return;
         try {
           await setDoc(
             doc(db, 'deleted_entries', id),
@@ -303,7 +316,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
         }
       });
     }
-  }, [isAuthor, deletedIds]);
+  }, [isAuthor, deletedIds, permanentlyDeletedIds]);
 
   // Combine unique notes
   const allNotes = React.useMemo(() => {
@@ -436,18 +449,18 @@ export const InnerPage: React.FC<InnerPageProps> = ({
     return allArticles.filter((art) => getYearFromDate(art.date) === selectedWritingYear);
   }, [allArticles, selectedWritingYear]);
 
-  // Combine recently deleted items
+  // Combine recently deleted items (excluding permanently deleted)
   const allDeleted = React.useMemo(() => {
     const seen = new Set<string>();
     const combined: DeletedItem[] = [];
     [...firestoreDeleted, ...localDeleted].forEach((d) => {
-      if (!seen.has(d.id)) {
+      if (!seen.has(d.id) && !permanentlyDeletedIds.has(d.id)) {
         seen.add(d.id);
         combined.push(d);
       }
     });
     return combined;
-  }, [firestoreDeleted, localDeleted]);
+  }, [firestoreDeleted, localDeleted, permanentlyDeletedIds]);
 
   const selectedArticle = allArticles.find((a) => a.id === selectedArticleId);
 
@@ -481,9 +494,23 @@ export const InnerPage: React.FC<InnerPageProps> = ({
     localStorage.removeItem('yves_passcode_auth');
   };
 
+  const safeSetLocal = (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn(`LocalStorage write skipped for ${key}:`, e);
+      try {
+        localStorage.removeItem('yves_recently_deleted');
+        localStorage.setItem(key, value);
+      } catch {
+        // Safe fallback
+      }
+    }
+  };
+
   const handlePasscodeSuccess = () => {
     setIsPasscodeAuthor(true);
-    localStorage.setItem('yves_passcode_auth', 'true');
+    safeSetLocal('yves_passcode_auth', 'true');
   };
 
   // Move diary note to recently deleted
@@ -504,15 +531,15 @@ export const InnerPage: React.FC<InnerPageProps> = ({
     const updatedDeleted = new Set(deletedIds);
     updatedDeleted.add(noteId);
     setDeletedIds(updatedDeleted);
-    localStorage.setItem('yves_deleted_ids', JSON.stringify(Array.from(updatedDeleted)));
+    safeSetLocal('yves_deleted_ids', JSON.stringify(Array.from(updatedDeleted)));
 
     const updatedLocalDeleted = [deletedRecord, ...localDeleted.filter((it) => it.id !== noteId)];
     setLocalDeleted(updatedLocalDeleted);
-    localStorage.setItem('yves_recently_deleted', JSON.stringify(updatedLocalDeleted));
+    safeSetLocal('yves_recently_deleted', JSON.stringify(updatedLocalDeleted));
 
     const updatedLocalNotes = localNotes.filter((it) => it.id !== noteId);
     setLocalNotes(updatedLocalNotes);
-    localStorage.setItem('yves_local_diary', JSON.stringify(updatedLocalNotes));
+    safeSetLocal('yves_local_diary', JSON.stringify(updatedLocalNotes));
 
     try {
       await setDoc(doc(db, 'deleted_entries', noteId), {
@@ -545,15 +572,15 @@ export const InnerPage: React.FC<InnerPageProps> = ({
     const updatedDeleted = new Set(deletedIds);
     updatedDeleted.add(articleId);
     setDeletedIds(updatedDeleted);
-    localStorage.setItem('yves_deleted_ids', JSON.stringify(Array.from(updatedDeleted)));
+    safeSetLocal('yves_deleted_ids', JSON.stringify(Array.from(updatedDeleted)));
 
     const updatedLocalDeleted = [deletedRecord, ...localDeleted.filter((it) => it.id !== articleId)];
     setLocalDeleted(updatedLocalDeleted);
-    localStorage.setItem('yves_recently_deleted', JSON.stringify(updatedLocalDeleted));
+    safeSetLocal('yves_recently_deleted', JSON.stringify(updatedLocalDeleted));
 
     const updatedLocalArticles = localArticles.filter((it) => it.id !== articleId);
     setLocalArticles(updatedLocalArticles);
-    localStorage.setItem('yves_local_writing', JSON.stringify(updatedLocalArticles));
+    safeSetLocal('yves_local_writing', JSON.stringify(updatedLocalArticles));
 
     try {
       await setDoc(doc(db, 'deleted_entries', articleId), {
@@ -573,14 +600,20 @@ export const InnerPage: React.FC<InnerPageProps> = ({
 
   // Restore an item from recently deleted
   const handleRestore = async (item: DeletedItem) => {
+    // Unmark from permanently deleted if present
+    const nextPerm = new Set(permanentlyDeletedIds);
+    nextPerm.delete(item.id);
+    setPermanentlyDeletedIds(nextPerm);
+    safeSetLocal('yves_permanently_deleted', JSON.stringify(Array.from(nextPerm)));
+
     const updatedDeleted = new Set(deletedIds);
     updatedDeleted.delete(item.id);
     setDeletedIds(updatedDeleted);
-    localStorage.setItem('yves_deleted_ids', JSON.stringify(Array.from(updatedDeleted)));
+    safeSetLocal('yves_deleted_ids', JSON.stringify(Array.from(updatedDeleted)));
 
     const updatedLocalDeleted = localDeleted.filter((it) => it.id !== item.id);
     setLocalDeleted(updatedLocalDeleted);
-    localStorage.setItem('yves_recently_deleted', JSON.stringify(updatedLocalDeleted));
+    safeSetLocal('yves_recently_deleted', JSON.stringify(updatedLocalDeleted));
 
     if (item.type === 'diary') {
       const restoredNote: NoteItem = {
@@ -591,7 +624,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
       };
       const updatedLocalNotes = [restoredNote, ...localNotes.filter((it) => it.id !== item.id)];
       setLocalNotes(updatedLocalNotes);
-      localStorage.setItem('yves_local_diary', JSON.stringify(updatedLocalNotes));
+      safeSetLocal('yves_local_diary', JSON.stringify(updatedLocalNotes));
 
       try {
         await setDoc(doc(db, 'diary_entries', item.id), {
@@ -616,7 +649,7 @@ export const InnerPage: React.FC<InnerPageProps> = ({
       };
       const updatedLocalArticles = [restoredArticle, ...localArticles.filter((it) => it.id !== item.id)];
       setLocalArticles(updatedLocalArticles);
-      localStorage.setItem('yves_local_writing', JSON.stringify(updatedLocalArticles));
+      safeSetLocal('yves_local_writing', JSON.stringify(updatedLocalArticles));
 
       try {
         await setDoc(doc(db, 'writing_articles', item.id), {
@@ -639,12 +672,39 @@ export const InnerPage: React.FC<InnerPageProps> = ({
   const handlePermanentDelete = async (id: string) => {
     if (!window.confirm('Permanently delete this item? This cannot be undone.')) return;
 
+    // 1. Mark permanently deleted so it's instantly hidden and never resurrected
+    const nextPerm = new Set(permanentlyDeletedIds);
+    nextPerm.add(id);
+    setPermanentlyDeletedIds(nextPerm);
+    safeSetLocal('yves_permanently_deleted', JSON.stringify(Array.from(nextPerm)));
+
+    // 2. Remove from deletedIds (stops auto-sync re-creation)
+    const nextDeleted = new Set(deletedIds);
+    nextDeleted.delete(id);
+    setDeletedIds(nextDeleted);
+    safeSetLocal('yves_deleted_ids', JSON.stringify(Array.from(nextDeleted)));
+
+    // 3. Remove from local deleted state & storage
     const updatedLocalDeleted = localDeleted.filter((it) => it.id !== id);
     setLocalDeleted(updatedLocalDeleted);
-    localStorage.setItem('yves_recently_deleted', JSON.stringify(updatedLocalDeleted));
+    safeSetLocal('yves_recently_deleted', JSON.stringify(updatedLocalDeleted));
 
+    // 4. Purge from local diary / writing backups
+    const updatedLocalNotes = localNotes.filter((it) => it.id !== id);
+    setLocalNotes(updatedLocalNotes);
+    safeSetLocal('yves_local_diary', JSON.stringify(updatedLocalNotes));
+
+    const updatedLocalArticles = localArticles.filter((it) => it.id !== id);
+    setLocalArticles(updatedLocalArticles);
+    safeSetLocal('yves_local_writing', JSON.stringify(updatedLocalArticles));
+
+    // 5. Delete permanently from all Firestore collections
     try {
-      await deleteDoc(doc(db, 'deleted_entries', id));
+      await Promise.allSettled([
+        deleteDoc(doc(db, 'deleted_entries', id)),
+        deleteDoc(doc(db, 'diary_entries', id)),
+        deleteDoc(doc(db, 'writing_articles', id)),
+      ]);
     } catch (e) {
       console.warn('Permanent deletion:', e);
     }
@@ -655,15 +715,48 @@ export const InnerPage: React.FC<InnerPageProps> = ({
     if (!window.confirm('Empty all recently deleted items? This cannot be undone.')) return;
 
     const idsToDelete = allDeleted.map((it) => it.id);
-    setLocalDeleted([]);
-    localStorage.removeItem('yves_recently_deleted');
+    if (idsToDelete.length === 0) return;
 
-    for (const id of idsToDelete) {
-      try {
-        await deleteDoc(doc(db, 'deleted_entries', id));
-      } catch {
-        // ignore
-      }
+    // 1. Mark all permanently deleted so they vanish instantly and never resurrect
+    const nextPerm = new Set(permanentlyDeletedIds);
+    idsToDelete.forEach((id) => nextPerm.add(id));
+    setPermanentlyDeletedIds(nextPerm);
+    safeSetLocal('yves_permanently_deleted', JSON.stringify(Array.from(nextPerm)));
+
+    // 2. Remove all from deletedIds (stops auto-sync re-creation)
+    const nextDeleted = new Set(deletedIds);
+    idsToDelete.forEach((id) => nextDeleted.delete(id));
+    setDeletedIds(nextDeleted);
+    safeSetLocal('yves_deleted_ids', JSON.stringify(Array.from(nextDeleted)));
+
+    // 3. Clear local deleted state & storage
+    setLocalDeleted([]);
+    try {
+      localStorage.removeItem('yves_recently_deleted');
+    } catch {
+      // ignore
+    }
+
+    // 4. Purge from local diary / writing backups
+    const updatedLocalNotes = localNotes.filter((it) => !idsToDelete.includes(it.id));
+    setLocalNotes(updatedLocalNotes);
+    safeSetLocal('yves_local_diary', JSON.stringify(updatedLocalNotes));
+
+    const updatedLocalArticles = localArticles.filter((it) => !idsToDelete.includes(it.id));
+    setLocalArticles(updatedLocalArticles);
+    safeSetLocal('yves_local_writing', JSON.stringify(updatedLocalArticles));
+
+    // 5. Delete all permanently from Firestore
+    try {
+      await Promise.allSettled(
+        idsToDelete.flatMap((id) => [
+          deleteDoc(doc(db, 'deleted_entries', id)),
+          deleteDoc(doc(db, 'diary_entries', id)),
+          deleteDoc(doc(db, 'writing_articles', id)),
+        ])
+      );
+    } catch (e) {
+      console.warn('Empty trash firestore sync:', e);
     }
   };
 
